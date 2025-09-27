@@ -1,13 +1,18 @@
 "use client";
 import { signIn } from "next-auth/react";
 import { useSession } from "next-auth/react";
+import { useRouter } from "next/navigation";
+import { useEffect } from "react";
 
 export default function SignIn() {
-  const { data: session, status } = useSession();
+  const { status } = useSession();
+  const router = useRouter();
 
-  if(status === "authenticated") {
-    return <p>Signed in as {session.user?.email}</p>
-  }
+  useEffect(() => {
+    if (status === "authenticated") {
+      router.push("/");
+    }
+  }, [status, router]);
 
   return (
     <div className="min-h-screen bg-white flex items-center justify-center px-4">
@@ -20,7 +25,7 @@ export default function SignIn() {
             Welcome back! Please sign in to continue
           </p>
         </div>
-        
+
         <div className="mt-8">
           <button
             onClick={() => signIn("google")}
@@ -52,7 +57,7 @@ export default function SignIn() {
             Continue with Google
           </button>
         </div>
-        
+
         <div className="text-center">
           <p className="text-xs text-gray-500">
             By signing in, you agree to our Terms of Service and Privacy Policy

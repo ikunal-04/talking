@@ -25,14 +25,13 @@ export const authOptions = {
                     return false;
                 }
 
-                console.log("users object returning from google", user);
-
                 if (!existingUser) {
                     const { error: insertError } = await supabase.from("users").insert({
+                        userId: user.id,
                         email: user.email,
                         name: user.name,
                         imageUrl: user.image,
-                        userId: user.id
+                        plans: "FREE"
                     });
 
                     if (insertError) {
@@ -59,12 +58,8 @@ export const authOptions = {
             }
             return session;
         },
-        async redirect({ url, baseUrl }: { url: string, baseUrl: string }) {
-            // Allows relative callback URLs
-            if (url.startsWith("/")) return `${baseUrl}${url}`
-            // Allows callback URLs on the same origin
-            else if (new URL(url).origin === baseUrl) return url
-            return baseUrl
+        async redirect() {
+            return '/'
         }
     }
 };

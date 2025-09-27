@@ -5,6 +5,6 @@ export type Users = {
     name: string;
     email: string;
     imageUrl: string;
-    plans: string;
+    plans: "FREE" | "PRO" | "ULTRA";
     createdAt: Date;
 }
