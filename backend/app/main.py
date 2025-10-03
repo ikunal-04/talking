@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import uvicorn
-# from app.routes.agent_routes import agent_routes
+from app.routes.agent_routes import router as agent_router
 
 app = FastAPI(docs_url = None, redoc_url = None)
 
@@ -12,6 +12,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Include the agent router
+app.include_router(agent_router)
 
 @app.get('/')
 async def root():
