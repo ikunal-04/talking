@@ -67,24 +67,39 @@ export const VoiceChat = () => {
 
         if (data.audio_data) {
           try {
+            console.log('🔊 Received audio data:', data.audio_mime_type);
+            
             const mimeRaw: string | undefined = data.audio_mime_type;
             const mime = (mimeRaw || '').toLowerCase();
             const byteArray = base64ToUint8Array(data.audio_data);
-            // Ensure BlobPart is a plain ArrayBuffer (avoid SharedArrayBuffer types)
+            
+            // Ensure BlobPart is a plain ArrayBuffer
             const buf = new ArrayBuffer(byteArray.byteLength);
             new Uint8Array(buf).set(byteArray);
-            // Primary: produce a definitely-playable WAV when input is PCM/linear16.
+            
+            console.log(`🎵 Audio buffer size: ${buf.byteLength} bytes, MIME: ${mime}`);
+            
             let blob: Blob;
-            if (mime.includes('wav')) {
+            
+            // Handle Deepgram's linear16 format (48kHz, 1 channel)
+            if (mime.includes('linear16')) {
+              const sampleRate = parseSampleRateFromMime(mime) ?? 48000; // Deepgram default
+              const channels = parseChannelsFromMime(mime) ?? 1;
+              console.log(`🔧 Converting linear16 to WAV: ${sampleRate}Hz, ${channels} channel(s)`);
+              
+              const wavAb = buildWavFromPCM16(new Uint8Array(buf), sampleRate, channels);
+              blob = new Blob([wavAb], { type: 'audio/wav' });
+            } else if (mime.includes('wav')) {
               blob = new Blob([buf], { type: 'audio/wav' });
-            } else if (mime.includes('linear16') || mime.includes('pcm')) {
-              const detectedRate = parseSampleRateFromMime(mime) ?? 24000;
-              const wavAb = buildWavFromPCM16(new Uint8Array(buf), detectedRate, 1);
+            } else if (mime.includes('pcm')) {
+              // Fallback for PCM
+              const wavAb = buildWavFromPCM16(new Uint8Array(buf), 48000, 1);
               blob = new Blob([wavAb], { type: 'audio/wav' });
             } else {
-              // Non-PCM formats (mp3/ogg/etc.) use original mime
+              // Other formats
               blob = new Blob([buf], { type: mimeRaw || 'audio/mpeg' });
             }
+            
             let url = URL.createObjectURL(blob);
 
             // Stop previous playback
@@ -97,26 +112,24 @@ export const VoiceChat = () => {
             audioPlaybackRef.current = audio;
             audio.volume = isMuted ? 0 : volume;
             setIsPlaying(true);
+            
             audio.onended = () => {
               setIsPlaying(false);
               try { URL.revokeObjectURL(url); } catch {}
             };
-            audio.onerror = async () => {
-              // Last-resort: wrap to WAV and retry once (handles unknown PCM-like cases)
+            
+            audio.onerror = async (error) => {
+              console.error('Audio playback error:', error);
+              setIsPlaying(false);
               try { URL.revokeObjectURL(url); } catch {}
-              try {
-                const fallbackWav = buildWavFromPCM16(new Uint8Array(buf), 24000, 1);
-                const fallbackBlob = new Blob([fallbackWav], { type: 'audio/wav' });
-                url = URL.createObjectURL(fallbackBlob);
-                audio.src = url;
-                try { await audio.play(); setIsPlaying(true); } catch { setIsPlaying(false); }
-              } catch {
-                setIsPlaying(false);
-              }
             };
+            
+            console.log('▶️ Starting audio playback');
             void audio.play();
+            
           } catch (e) {
             console.error('Failed to play agent audio:', e);
+            setIsPlaying(false);
           }
         }
       }
@@ -308,6 +321,16 @@ export const VoiceChat = () => {
     const rateMatch = lower.match(/(?:rate|samplerate)\s*=\s*(\d{3,6})/);
     if (rateMatch) {
       const n = parseInt(rateMatch[1], 10);
+      if (!Number.isNaN(n) && n > 0) return n;
+    }
+    return null;
+  }
+
+  function parseChannelsFromMime(mime: string): number | null {
+    const lower = mime.toLowerCase();
+    const channelsMatch = lower.match(/channels?\s*=\s*(\d+)/);
+    if (channelsMatch) {
+      const n = parseInt(channelsMatch[1], 10);
       if (!Number.isNaN(n) && n > 0) return n;
     }
     return null;
